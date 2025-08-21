@@ -1,0 +1,22 @@
+# Core data processing dependencies
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+
+# Web scraping dependencies  
+selenium>=4.15.0
+requests>=2.31.0
+undetected-chromedriver>=3.5.0
+webdriver-manager>=4.0.0
+
+# Utility dependencies
+pathlib2>=2.3.7; python_version < "3.4"
+
+# Optional but recommended
+xlrd>=2.0.1  # For reading .xls files
+xlsxwriter>=3.1.0  # Alternative Excel writer
+
+# Development dependencies (optional)
+pytest>=7.4.0
+black>=23.0.0
+flake8>=6.0.0
