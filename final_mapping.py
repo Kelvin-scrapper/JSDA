@@ -9,6 +9,7 @@ from pathlib import Path
 import logging
 from datetime import datetime
 import re
+import json
 from typing import Dict, List, Optional, Any, Tuple
 import numpy as np
 
@@ -39,12 +40,191 @@ logger, log_file = setup_logging()
 class FinalJSDAProcessor:
     """Final JSDA processor with corrected column ranges and comprehensive mappings."""
     
-    def __init__(self):
+    def __init__(self, config_path: str = None):
         logger.info("Initializing Final JSDA Processor...")
+
+        # Load config file
+        if config_path is None:
+            config_path = Path(__file__).parent / "jsda_mapping_config.json"
+        self._load_config(config_path)
+
         self._setup_target_structure()
         self._setup_sheet_mappings()
+        self._setup_header_mapping_from_config()
         self._setup_final_mappings()
         logger.info("Processor initialized successfully")
+
+    def _load_config(self, config_path):
+        """Load mapping configuration from JSON file."""
+        config_path = Path(config_path)
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                self.config = json.load(f)
+            logger.info(f"Loaded config from {config_path}")
+        else:
+            logger.warning(f"Config file not found: {config_path}, using defaults")
+            self.config = {}
+
+    def _setup_header_mapping_from_config(self):
+        """Build header mappings from config file."""
+        if not self.config:
+            self._setup_header_mapping()
+            return
+
+        self.header_to_target = {}
+        header_mappings = self.config.get('header_mappings', {})
+
+        for code, mapping in header_mappings.items():
+            # Get all header patterns (Japanese and English)
+            patterns = mapping.get('japanese', []) + mapping.get('english', [])
+            num_col = mapping.get('number_col')
+            amt_col = mapping.get('amount_col')
+
+            for pattern in patterns:
+                if num_col:
+                    num_target = f'JPN.{code}.{{scope}}.{num_col}'
+                else:
+                    num_target = None
+                if amt_col:
+                    amt_target = f'JPN.{code}.{{scope}}.{amt_col}'
+                else:
+                    amt_target = None
+                self.header_to_target[pattern] = (num_target, amt_target)
+
+        # Load scope mapping from config
+        self.sheet_scope = self.config.get('scope_mapping', {
+            'domestic': 'DOM',
+            'overseas': 'OVR',
+            'total': 'TTL',
+            'size_breakdown': 'SZ',
+            'market_breakdown': 'MRKT',
+            'reference': 'REF',
+            'secondary_domestic': 'SDDOM',
+            'secondary_overseas': 'SDOVR',
+            'secondary_total': 'SDTTL',
+            'secondary_size': 'SDSZ',
+        })
+
+        # Load column indicators
+        self.column_indicators = self.config.get('column_indicators', {
+            'number': ['件数', 'Number'],
+            'amount': ['調達額', '売出額', 'Amount']
+        })
+
+        logger.info(f"Loaded {len(self.header_to_target)} header patterns from config")
+
+    def _setup_header_mapping(self):
+        """Map header text patterns to target column names for dynamic detection."""
+        # This dictionary maps actual header text (Japanese/English) to target columns
+        # Format: {header_text_pattern: (target_num_col, target_amt_col)}
+
+        self.header_to_target = {
+            # Domestic/Overseas/Total equity financing headers - Stocks Non-IPO
+            '株券（新規上場以外）': ('JPN.SNIPO.{scope}.N.M', 'JPN.SNIPO.{scope}.A.M'),
+            '株券等（新規公開以外）': ('JPN.SNIPO.{scope}.N.M', 'JPN.SNIPO.{scope}.A.M'),
+            'Stocks(Non IPO)': ('JPN.SNIPO.{scope}.N.M', 'JPN.SNIPO.{scope}.A.M'),
+            'Stocks,etc.(Shares,DR)': ('JPN.SNIPO.{scope}.N.M', 'JPN.SNIPO.{scope}.A.M'),
+            'Non IPO': ('JPN.SNIPO.{scope}.N.M', 'JPN.SNIPO.{scope}.A.M'),
+
+            # Convertible Bonds
+            '転換社債型新株予約権付社債券': ('JPN.CB.{scope}.N.M', 'JPN.CB.{scope}.A.M'),
+            '転換社債型': ('JPN.CB.{scope}.N.M', 'JPN.CB.{scope}.A.M'),
+            'Convertible Bonds': ('JPN.CB.{scope}.N.M', 'JPN.CB.{scope}.A.M'),
+            'CB': ('JPN.CB.{scope}.N.M', 'JPN.CB.{scope}.A.M'),
+
+            # Bonds with Share Options
+            '新株予約権付社債券': ('JPN.BWSO.{scope}.N.M', 'JPN.BWSO.{scope}.A.M'),
+            '新株予約権付社債': ('JPN.BWSO.{scope}.N.M', 'JPN.BWSO.{scope}.A.M'),
+            'Bonds with Share Options': ('JPN.BWSO.{scope}.N.M', 'JPN.BWSO.{scope}.A.M'),
+            'BwSO': ('JPN.BWSO.{scope}.N.M', 'JPN.BWSO.{scope}.A.M'),
+
+            # Share Option Certificates
+            '新株予約権証券': ('JPN.SOC.{scope}.N.M', 'JPN.SOC.{scope}.A.M'),
+            'Share Option Certificates': ('JPN.SOC.{scope}.N.M', 'JPN.SOC.{scope}.A.M'),
+            'Share Option': ('JPN.SOC.{scope}.N.M', 'JPN.SOC.{scope}.A.M'),
+
+            # Stocks IPO
+            '株券等（新規上場）': ('JPN.SIPO.{scope}.N.M', 'JPN.SIPO.{scope}.A.M'),
+            '株券等（新規公開）': ('JPN.SIPO.{scope}.N.M', 'JPN.SIPO.{scope}.A.M'),
+            'Stocks(IPO)': ('JPN.SIPO.{scope}.N.M', 'JPN.SIPO.{scope}.A.M'),
+            'IPO': ('JPN.SIPO.{scope}.N.M', 'JPN.SIPO.{scope}.A.M'),
+
+            # Total Financing
+            '調達額計': ('JPN.TF.{scope}.N.M', 'JPN.TF.{scope}.A.M'),
+            '計': ('JPN.TF.{scope}.N.M', 'JPN.TF.{scope}.A.M'),
+            'Total Domestic Financing': ('JPN.TF.{scope}.N.M', 'JPN.TF.{scope}.A.M'),
+            'Total Overseas Financing': ('JPN.TF.{scope}.N.M', 'JPN.TF.{scope}.A.M'),
+            'Total Financing': ('JPN.TF.{scope}.N.M', 'JPN.TF.{scope}.A.M'),
+
+            # Market breakdown headers
+            'スイスフラン建': ('JPN.SF.MRKT.N.M', 'JPN.SF.MRKT.A.M'),
+            'スイスフラン': ('JPN.SF.MRKT.N.M', 'JPN.SF.MRKT.A.M'),
+            'Swiss Franc': ('JPN.SF.MRKT.N.M', 'JPN.SF.MRKT.A.M'),
+
+            'ユーロ建': ('JPN.EURL.MRKT.N.M', 'JPN.EURL.MRKT.A.M'),
+            'ユーロ': ('JPN.EURL.MRKT.N.M', 'JPN.EURL.MRKT.A.M'),
+            'Eurodollar': ('JPN.EURL.MRKT.N.M', 'JPN.EURL.MRKT.A.M'),
+            'Euro': ('JPN.EURL.MRKT.N.M', 'JPN.EURL.MRKT.A.M'),
+
+            'その他': ('JPN.OTH.MRKT.N.M', 'JPN.OTH.MRKT.A.M'),
+            'Other Markets': ('JPN.OTH.MRKT.N.M', 'JPN.OTH.MRKT.A.M'),
+            'Other': ('JPN.OTH.MRKT.N.M', 'JPN.OTH.MRKT.A.M'),
+
+            # Reference headers
+            '株主割当': ('JPN.SH.REF.N.M', 'JPN.SH.REF.A.M'),
+            'Shareholder Allotment': ('JPN.SH.REF.N.M', 'JPN.SH.REF.A.M'),
+            'Shareholder': ('JPN.SH.REF.N.M', 'JPN.SH.REF.A.M'),
+
+            '第三者割当': ('JPN.TP.REF.N.M', 'JPN.TP.REF.A.M'),
+            'Third Party': ('JPN.TP.REF.N.M', 'JPN.TP.REF.A.M'),
+
+            # Secondary distribution headers - Non-IPO
+            '株券等（新規公開以外）売出': ('JPN.NIPO.{scope}.N.M', 'JPN.NIPO.{scope}.A.M'),
+            '新規公開以外': ('JPN.NIPO.{scope}.N.M', 'JPN.NIPO.{scope}.A.M'),
+
+            # Secondary distribution headers - IPO
+            '株券等（新規公開）売出': ('JPN.IPO.{scope}.N.M', 'JPN.IPO.{scope}.A.M'),
+            '新規公開': ('JPN.IPO.{scope}.N.M', 'JPN.IPO.{scope}.A.M'),
+
+            # Secondary distribution total
+            '売出計': ('JPN.TTL.{scope}.N.M', 'JPN.TTL.{scope}.A.M'),
+
+            # Size breakdown headers
+            '10億円未満': ('JPN.L10B.{scope}.N.M', None),
+            'Less than 10': ('JPN.L10B.{scope}.N.M', None),
+            '10B未満': ('JPN.L10B.{scope}.N.M', None),
+
+            '10億円以上50億円未満': ('JPN.L50B.{scope}.N.M', None),
+            '50億円未満': ('JPN.L50B.{scope}.N.M', None),
+            '10 billion yen to less than 50': ('JPN.L50B.{scope}.N.M', None),
+            '10B以上50B未満': ('JPN.L50B.{scope}.N.M', None),
+
+            '50億円以上100億円未満': ('JPN.L100B.{scope}.N.M', None),
+            '100億円未満': ('JPN.L100B.{scope}.N.M', None),
+            '50 billion yen to less than 100': ('JPN.L100B.{scope}.N.M', None),
+            '50B以上100B未満': ('JPN.L100B.{scope}.N.M', None),
+
+            '100億円以上': ('JPN.M100B.{scope}.N.M', None),
+            '100 billion yen or more': ('JPN.M100B.{scope}.N.M', None),
+            '100B以上': ('JPN.M100B.{scope}.N.M', None),
+
+            '合計': ('JPN.TTL.{scope}.N.M', None),
+            'Total': ('JPN.TTL.{scope}.N.M', None),
+        }
+
+        # Scope mapping for different sheet types
+        self.sheet_scope = {
+            'domestic': 'DOM',
+            'overseas': 'OVR',
+            'total': 'TTL',
+            'size_breakdown': 'SZ',
+            'market_breakdown': 'MRKT',
+            'reference': 'REF',
+            'secondary_domestic': 'SDDOM',
+            'secondary_overseas': 'SDOVR',
+            'secondary_total': 'SDTTL',
+            'secondary_size': 'SDSZ',
+        }
 
     def _setup_target_structure(self):
         """Define the exact target structure."""
@@ -147,12 +327,12 @@ class FinalJSDAProcessor:
             'JPN.TTL.SDDOM.A.M': 'Equity Financing by Companies Listed in Japan (Secondary Distribution/Domestic/Breakdown by Issue Type); Total - Amount',
             
             # Secondary overseas
-            'JPN.NIPO.SDOVR.N.M': 'Equity Financing by Companies Listed in Japan (Secondary Distribution/Overseas/Breakdown by Issue Type); Stocks(Non IPO) - Number',
-            'JPN.NIPO.SDOVR.A.M': 'Equity Financing by Companies Listed in Japan (Secondary Distribution/Overseas/Breakdown by Issue Type); Stocks(Non IPO) - Amount',
-            'JPN.IPO.SDOVR.N.M': 'Equity Financing by Companies Listed in Japan (Secondary Distribution/Overseas/Breakdown by Issue Type); Stocks(IPO) - Number',
-            'JPN.IPO.SDOVR.A.M': 'Equity Financing by Companies Listed in Japan (Secondary Distribution/Overseas/Breakdown by Issue Type); Stocks(IPO) - Amount',
-            'JPN.TTL.SDOVR.N.M': 'Equity Financing by Companies Listed in Japan (Secondary Distribution/Overseas/Breakdown by Issue Type); Total - Number',
-            'JPN.TTL.SDOVR.A.M': 'Equity Financing by Companies Listed in Japan (Secondary Distribution/Overseas/Breakdown by Issue Type); Total - Amount',
+            'JPN.NIPO.SDOVR.N.M': 'Equity Financing by Companies Listed in Japan (Secondary Distributions/Overseas/Breakdown by Issue Type); Secondary Distributions (Non IPO) - Number',
+            'JPN.NIPO.SDOVR.A.M': 'Equity Financing by Companies Listed in Japan (Secondary Distributions/Overseas/Breakdown by Issue Type); Secondary Distributions (Non IPO) - Amount',
+            'JPN.IPO.SDOVR.N.M': 'Equity Financing by Companies Listed in Japan (Secondary Distributions/Overseas/Breakdown by Issue Type); Secondary Distributions (IPO) - Number',
+            'JPN.IPO.SDOVR.A.M': 'Equity Financing by Companies Listed in Japan (Secondary Distributions/Overseas/Breakdown by Issue Type); Secondary Distributions (IPO) - Amount',
+            'JPN.TTL.SDOVR.N.M': 'Equity Financing by Companies Listed in Japan (Secondary Distributions/Overseas/Breakdown by Issue Type); Total Overseas Secondary Distributions - Number',
+            'JPN.TTL.SDOVR.A.M': 'Equity Financing by Companies Listed in Japan (Secondary Distributions/Overseas/Breakdown by Issue Type); Total Overseas Secondary Distributions - Amount',
             
             # Secondary total
             'JPN.NIPO.SDTTL.N.M': 'Equity Financing by Companies Listed in Japan (Secondary Distribution/Total/Breakdown by Issue Type); Stocks(Non IPO) - Number',
@@ -184,6 +364,175 @@ class FinalJSDAProcessor:
             '売出合計': ('secondary_total', 8),
             '売出規模内訳': ('secondary_size', 9)
         }
+
+    def _detect_columns_dynamically(self, df: pd.DataFrame, sheet_type: str) -> Tuple[int, Dict[int, str]]:
+        """Detect column mappings dynamically by scanning headers."""
+        logger.info(f"Detecting columns dynamically for sheet type: {sheet_type}")
+
+        # Get indicators from config
+        number_indicators = self.column_indicators.get('number', ['件数', 'Number'])
+        amount_indicators = self.column_indicators.get('amount', ['調達額', '売出額', 'Amount'])
+        all_indicators = number_indicators + amount_indicators
+
+        # Get year indicators from config for date detection
+        year_indicators = self.config.get('date_patterns', {}).get('year_indicators',
+                                                                   ['2020', '2021', '2022', '2023', '2024', '2025', '2026'])
+
+        # Find header row (contains Number indicators)
+        header_row = -1
+        for row_idx in range(min(15, len(df))):
+            row_text = ' '.join([str(v) if pd.notna(v) else '' for v in df.iloc[row_idx]])
+            if any(ind in row_text for ind in number_indicators):
+                header_row = row_idx
+                break
+
+        if header_row == -1:
+            logger.warning(f"Could not find header row for {sheet_type}")
+            return self._get_fallback_mapping(sheet_type)
+
+        # Find data start row (first row with date after header)
+        data_start_row = -1
+        for row_idx in range(header_row + 1, len(df)):
+            first_cell = df.iloc[row_idx, 0]
+            if pd.notna(first_cell):
+                if 'datetime' in str(type(first_cell)).lower():
+                    data_start_row = row_idx
+                    break
+                elif any(y in str(first_cell) for y in year_indicators):
+                    data_start_row = row_idx
+                    break
+
+        if data_start_row == -1:
+            data_start_row = header_row + 2
+
+        # Verify this row actually has numeric data (not just a date)
+        while data_start_row < len(df):
+            row_data = df.iloc[data_start_row, 1:]
+            has_numeric_data = False
+            for val in row_data:
+                if pd.notna(val):
+                    try:
+                        if isinstance(val, (int, float)) and val != 0:
+                            has_numeric_data = True
+                            break
+                        elif isinstance(val, str):
+                            clean = re.sub(r'[^\d.-]', '', str(val))
+                            if clean and clean != '-' and float(clean) != 0:
+                                has_numeric_data = True
+                                break
+                    except (ValueError, TypeError):
+                        continue
+            if has_numeric_data:
+                break
+            data_start_row += 1
+
+        # Get scope for this sheet type
+        scope = self.sheet_scope.get(sheet_type, 'DOM')
+
+        # Build column mapping by scanning headers
+        col_mapping = {}
+
+        # For size breakdown sheets, columns are just numbers (no Number/Amount distinction)
+        is_size_sheet = sheet_type in ['size_breakdown', 'secondary_size']
+
+        # Track current category as we scan left-to-right (categories span multiple columns)
+        current_category = None
+        current_targets = (None, None)
+        pending_amount_target = None  # Track when we need to map next column as amount
+
+        # Collect all header text for each column (scan multiple rows above header_row)
+        for col_idx in range(1, len(df.columns)):  # Skip column 0 (date column)
+            header_texts = []
+            for scan_row in range(max(0, header_row - 6), header_row + 1):
+                if scan_row < len(df):
+                    val = df.iloc[scan_row, col_idx]
+                    if pd.notna(val):
+                        header_texts.append(str(val).strip())
+
+            combined_header = ' '.join(header_texts)
+
+            # If previous column had Amount header but no data, this column has the amount value
+            # Check if header is empty OR only contains non-data headers (like unit labels)
+            is_data_column = True
+            if combined_header:
+                # Only consider as non-data if it contains actual category or indicator headers
+                has_category = any(pattern in combined_header for pattern, _ in self.header_to_target.items() if pattern not in all_indicators)
+                has_indicator = any(ind in combined_header for ind in all_indicators)
+                is_data_column = not has_category and not has_indicator
+
+            if pending_amount_target and is_data_column:
+                # Check if this column has numeric data
+                sample_val = df.iloc[data_start_row, col_idx] if data_start_row < len(df) else None
+                if pd.notna(sample_val) and (isinstance(sample_val, (int, float)) or str(sample_val).replace('.','').replace('-','').isdigit()):
+                    col_mapping[col_idx] = pending_amount_target
+                    pending_amount_target = None
+                    continue
+
+            pending_amount_target = None  # Reset if not used
+
+            # Check if this column has a category header (not just Number/Amount)
+            # Sort patterns by length (longest first) to match most specific pattern
+            category_found = False
+            sorted_patterns = sorted(self.header_to_target.items(), key=lambda x: len(x[0]), reverse=True)
+            for pattern, targets in sorted_patterns:
+                if pattern in combined_header:
+                    # Check this isn't just a Number/Amount match
+                    if pattern not in all_indicators:
+                        current_category = pattern
+                        current_targets = targets
+                        category_found = True
+                        break
+
+            # Determine if this is a Number or Amount column
+            is_number_col = any(ind in combined_header for ind in number_indicators)
+            is_amount_col = any(ind in combined_header for ind in amount_indicators)
+
+            # Map the column using current category context
+            if current_targets[0]:
+                if is_size_sheet:
+                    # Size sheets - match category directly
+                    if category_found:
+                        target = current_targets[0].format(scope=scope) if '{scope}' in current_targets[0] else current_targets[0]
+                        col_mapping[col_idx] = target
+                elif is_number_col:
+                    target = current_targets[0].format(scope=scope) if '{scope}' in current_targets[0] else current_targets[0]
+                    col_mapping[col_idx] = target
+                elif is_amount_col and current_targets[1]:
+                    target = current_targets[1].format(scope=scope) if '{scope}' in current_targets[1] else current_targets[1]
+                    # Check if this column actually has data, or if data is in next column
+                    sample_val = df.iloc[data_start_row, col_idx] if data_start_row < len(df) else None
+                    if pd.notna(sample_val) and (isinstance(sample_val, (int, float)) or str(sample_val).replace('.','').replace('-','').isdigit()):
+                        col_mapping[col_idx] = target
+                    else:
+                        # Amount data is likely in the next column (merged cell pattern)
+                        pending_amount_target = target
+
+        # Get expected column count from fallback mapping
+        fallback_mapping = self.final_mappings.get(sheet_type, {})
+        expected_cols = len(fallback_mapping)
+
+        # Use dynamic detection if it found enough columns, otherwise use fallback
+        if col_mapping and len(col_mapping) >= expected_cols * 0.8:
+            logger.info(f"Dynamic detection found {len(col_mapping)}/{expected_cols} columns for {sheet_type}")
+            return data_start_row, col_mapping
+        elif col_mapping:
+            # Merge dynamic with fallback - dynamic takes precedence for matched columns
+            merged = fallback_mapping.copy()
+            for col_idx, target in col_mapping.items():
+                merged[col_idx] = target
+            logger.info(f"Merged mapping: dynamic {len(col_mapping)} + fallback, total {len(merged)} for {sheet_type}")
+            return data_start_row, merged
+        else:
+            logger.info(f"Using fallback mapping for {sheet_type}")
+            return data_start_row, fallback_mapping
+
+    def _get_fallback_mapping(self, sheet_type: str) -> Tuple[int, Dict[int, str]]:
+        """Return fallback hardcoded mapping."""
+        if sheet_type in ['overseas', 'market_breakdown']:
+            data_start = 14
+        else:
+            data_start = 13
+        return data_start, self.final_mappings.get(sheet_type, {})
 
     def _setup_final_mappings(self):
         """Final column mapping with corrected ranges and comprehensive coverage."""
@@ -305,21 +654,17 @@ class FinalJSDAProcessor:
         }
 
     def process_sheet(self, df: pd.DataFrame, sheet_type: str, sheet_name: str) -> Dict[str, float]:
-        """Process a sheet with the final corrected column mapping."""
+        """Process a sheet with dynamic column detection."""
         data_dict = {}
-        
-        if sheet_type not in self.final_mappings:
+
+        # Use dynamic column detection
+        data_row_start, mapping = self._detect_columns_dynamically(df, sheet_type)
+
+        if not mapping:
             logger.warning(f"No mapping found for sheet type: {sheet_type}")
             return data_dict
-        
-        mapping = self.final_mappings[sheet_type]
-        logger.info(f"Processing {sheet_type} sheet with {len(mapping)} mappings")
-        
-        # Data starts from row 13 for most sheets, but row 14 for overseas and market_breakdown
-        if sheet_type in ['overseas', 'market_breakdown']:
-            data_row_start = 14  # Overseas and market breakdown sheets start from row 14
-        else:
-            data_row_start = 13  # Other sheets start from row 13
+
+        logger.info(f"Processing {sheet_type} sheet with {len(mapping)} mappings, data starts at row {data_row_start}")
         total_updated = 0
         
         # Process all available months dynamically
@@ -335,10 +680,23 @@ class FinalJSDAProcessor:
             # Check if this row has any meaningful data (not just zeros/empty)
             row_data = df.iloc[data_row, 1:]  # Skip first column (usually date)
             has_data = any(pd.notna(val) and val != 0 and str(val).strip() != '' for val in row_data)
-            
-            if not has_data:
-                logger.info(f"Sheet {sheet_name} month {month+1}: No data found, stopping")
+
+            # Also check if row has a valid date - if no date, we've reached end of data
+            first_cell = df.iloc[data_row, 0]
+            has_date = pd.notna(first_cell) and (
+                hasattr(first_cell, 'year') or
+                any(y in str(first_cell) for y in ['2025', '2024', '2023', '2022', '2021', '2020'])
+            )
+
+            if not has_date:
+                logger.info(f"Sheet {sheet_name} processed {month} months of data (no more dates)")
                 break
+
+            if not has_data:
+                # Skip this month but continue processing (month may have zero data)
+                logger.info(f"Sheet {sheet_name} month {month+1}: No data, skipping")
+                month += 1
+                continue
             
             monthly_data = {}
             month_updated = 0
@@ -373,15 +731,29 @@ class FinalJSDAProcessor:
                     logger.warning(f"Column {col_idx} out of range for {sheet_name} (has {len(df.columns)} cols)")
                     monthly_data[target_col] = 0.0
             
-            # Store monthly data with correct month alignment for overseas and market_breakdown sheets
-            if sheet_type in ['overseas', 'market_breakdown']:
-                # Overseas and market breakdown sheets: start from 2025-02 to match manual extraction
-                # Month 0 -> 2025-02, Month 1 -> 2025-03, etc.
-                month_label = f"2025-{month+2:02d}"
+            # Extract date from first column dynamically
+            first_cell = df.iloc[data_row, 0]
+            month_label = None
+
+            if pd.notna(first_cell):
+                # Handle datetime objects
+                if hasattr(first_cell, 'year') and hasattr(first_cell, 'month'):
+                    month_label = f"{first_cell.year}-{first_cell.month:02d}"
+                else:
+                    # Try to parse string dates
+                    cell_str = str(first_cell)
+                    # Look for year-month patterns
+                    date_match = re.search(r'(\d{4})[年/-]?\s*(\d{1,2})', cell_str)
+                    if date_match:
+                        year = int(date_match.group(1))
+                        month_num = int(date_match.group(2))
+                        month_label = f"{year}-{month_num:02d}"
+                    else:
+                        # Fallback: use month counter
+                        month_label = f"2025-{month+1:02d}"
             else:
-                # Other sheets: normal alignment starting from 2025-01
                 month_label = f"2025-{month+1:02d}"
-                
+
             data_dict[month_label] = monthly_data
             total_updated += month_updated
             month += 1  # Increment month counter
@@ -410,11 +782,7 @@ class FinalJSDAProcessor:
         all_months = set()
         for sheet_data in all_data.values():
             all_months.update(sheet_data.keys())
-        
-        # Add 2025-01 with zeros if overseas data exists (to match manual extraction format)
-        if any('overseas' in sheet_type for sheet_type in all_data.keys()):
-            all_months.add('2025-01')
-        
+
         # Sort months to ensure proper order
         sorted_months = sorted(list(all_months))
         logger.info(f"Processing {len(sorted_months)} months with data: {sorted_months}")
@@ -422,20 +790,25 @@ class FinalJSDAProcessor:
         for date_key in sorted_months:
             row_data = [date_key]
             row_values = 0
-            
+
             for target_col in self.target_columns:
                 col_value = 0.0
-                
+
                 # Sum values from all sheets for this column and month
                 for sheet_data in all_data.values():
                     if date_key in sheet_data and target_col in sheet_data[date_key]:
                         col_value += sheet_data[date_key][target_col]
-                
+
                 row_data.append(col_value)
                 if col_value != 0:
                     row_values += 1
                     total_values += 1
-            
+
+            # Skip rows with no data (all zeros)
+            if row_values == 0:
+                logger.info(f"  {date_key}: Skipping - no data")
+                continue
+
             data_rows.append(row_data)
             logger.info(f"  {date_key}: {row_values} non-zero columns")
         

@@ -1,0 +1,175 @@
+{
+  "version": "1.0",
+  "description": "JSDA Data Mapping Configuration - Maps source headers to output columns",
+
+  "output_columns": [
+    "JPN.SNIPO.DOM.N.M", "JPN.SNIPO.DOM.A.M", "JPN.CB.DOM.N.M", "JPN.CB.DOM.A.M",
+    "JPN.BWSO.DOM.N.M", "JPN.BWSO.DOM.A.M", "JPN.SOC.DOM.N.M", "JPN.SOC.DOM.A.M",
+    "JPN.SIPO.DOM.N.M", "JPN.SIPO.DOM.A.M", "JPN.TF.DOM.N.M", "JPN.TF.DOM.A.M",
+    "JPN.SNIPO.OVR.N.M", "JPN.SNIPO.OVR.A.M", "JPN.CB.OVR.N.M", "JPN.CB.OVR.A.M",
+    "JPN.BWSO.OVR.N.M", "JPN.BWSO.OVR.A.M", "JPN.SIPO.OVR.N.M", "JPN.SIPO.OVR.A.M",
+    "JPN.TF.OVR.N.M", "JPN.TF.OVR.A.M",
+    "JPN.SNIPO.TTL.N.M", "JPN.SNIPO.TTL.A.M", "JPN.CB.TTL.N.M", "JPN.CB.TTL.A.M",
+    "JPN.BWSO.TTL.N.M", "JPN.BWSO.TTL.A.M", "JPN.SOC.TTL.N.M", "JPN.SOC.TTL.A.M",
+    "JPN.SIPO.TTL.N.M", "JPN.SIPO.TTL.A.M", "JPN.TF.TTL.N.M", "JPN.TF.TTL.A.M",
+    "JPN.L10B.SZ.N.M", "JPN.L50B.SZ.N.M", "JPN.L100B.SZ.N.M", "JPN.M100B.SZ.N.M", "JPN.TTL.SZ.N.M",
+    "JPN.SF.MRKT.N.M", "JPN.SF.MRKT.A.M", "JPN.EURL.MRKT.N.M", "JPN.EURL.MRKT.A.M",
+    "JPN.OTH.MRKT.N.M", "JPN.OTH.MRKT.A.M",
+    "JPN.SH.REF.N.M", "JPN.SH.REF.A.M", "JPN.TP.REF.N.M", "JPN.TP.REF.A.M",
+    "JPN.SOC.REF.N.M", "JPN.SOC.REF.A.M",
+    "JPN.NIPO.SDDOM.N.M", "JPN.NIPO.SDDOM.A.M", "JPN.IPO.SDDOM.N.M", "JPN.IPO.SDDOM.A.M",
+    "JPN.TTL.SDDOM.N.M", "JPN.TTL.SDDOM.A.M",
+    "JPN.NIPO.SDOVR.N.M", "JPN.NIPO.SDOVR.A.M", "JPN.IPO.SDOVR.N.M", "JPN.IPO.SDOVR.A.M",
+    "JPN.TTL.SDOVR.N.M", "JPN.TTL.SDOVR.A.M",
+    "JPN.NIPO.SDTTL.N.M", "JPN.NIPO.SDTTL.A.M", "JPN.IPO.SDTTL.N.M", "JPN.IPO.SDTTL.A.M",
+    "JPN.TTL.SDTTL.N.M", "JPN.TTL.SDTTL.A.M",
+    "JPN.L10B.SDSZ.N.M", "JPN.L50B.SDSZ.N.M", "JPN.L100B.SDSZ.N.M", "JPN.M100B.SDSZ.N.M", "JPN.TTL.SDSZ.N.M"
+  ],
+
+  "header_mappings": {
+    "SNIPO": {
+      "japanese": ["株券（新規上場以外）", "株券等（新規公開以外）", "株券等（新規上場以外）"],
+      "english": ["Stocks(Non IPO)", "Stocks,etc.(Non IPO)", "Stocks,etc.(Shares,DR)", "Non IPO"],
+      "number_col": "N.M",
+      "amount_col": "A.M"
+    },
+    "CB": {
+      "japanese": ["転換社債型新株予約権付社債券", "転換社債型"],
+      "english": ["Convertible Bonds", "CB"],
+      "number_col": "N.M",
+      "amount_col": "A.M"
+    },
+    "BWSO": {
+      "japanese": ["新株予約権付社債券", "新株予約権付社債"],
+      "english": ["Bonds with Share Options", "BwSO"],
+      "number_col": "N.M",
+      "amount_col": "A.M"
+    },
+    "SOC": {
+      "japanese": ["新株予約権証券"],
+      "english": ["Share Option Certificates", "Share Option"],
+      "number_col": "N.M",
+      "amount_col": "A.M"
+    },
+    "SIPO": {
+      "japanese": ["株券等（新規上場）", "株券等（新規公開）"],
+      "english": ["Stocks(IPO)", "Stocks,etc.(IPO)", "IPO"],
+      "number_col": "N.M",
+      "amount_col": "A.M"
+    },
+    "TF": {
+      "japanese": ["調達額計", "計"],
+      "english": ["Total Domestic Financing", "Total Overseas Financing", "Total Financing"],
+      "number_col": "N.M",
+      "amount_col": "A.M"
+    },
+    "L10B": {
+      "japanese": ["10億円未満", "100億円未満"],
+      "english": ["Less than 10 billion yen", "Less than 10B yen", "Less than 100 billion yen"],
+      "number_col": "N.M",
+      "amount_col": null
+    },
+    "L50B": {
+      "japanese": ["10億円以上50億円未満", "50億円未満", "100億円以上500億円未満", "500億円未満"],
+      "english": ["10 billion yen to less than 50 billion yen", "10B yen or more", "100B yen or more Less than 500B yen"],
+      "number_col": "N.M",
+      "amount_col": null
+    },
+    "L100B": {
+      "japanese": ["50億円以上100億円未満", "100億円未満", "500億円以上1,000億円未満", "1,000億円未満"],
+      "english": ["50 billion yen to less than 100 billion yen", "50B yen or more", "500B yen or more Less than 1,000B yen"],
+      "number_col": "N.M",
+      "amount_col": null
+    },
+    "M100B": {
+      "japanese": ["100億円以上", "1,000億円以上"],
+      "english": ["100 billion yen or more", "100B yen or more", "1,000B yen or more"],
+      "number_col": "N.M",
+      "amount_col": null
+    },
+    "SF": {
+      "japanese": ["スイスフラン建", "スイスフラン", "ｽｲｽ･ﾌﾗﾝ市場", "ｽｲｽ・ﾌﾗﾝ市場"],
+      "english": ["Swiss Franc", "Swiss Franc Market"],
+      "number_col": "N.M",
+      "amount_col": "A.M"
+    },
+    "EURL": {
+      "japanese": ["ユーロ建", "ユーロ", "ﾕｰﾛ･ﾄﾞﾙ市場", "ﾕｰﾛ・ﾄﾞﾙ市場"],
+      "english": ["Eurodollar", "Euro", "Eurodollar Market"],
+      "number_col": "N.M",
+      "amount_col": "A.M"
+    },
+    "OTH": {
+      "japanese": ["その他", "その他市場"],
+      "english": ["Other Markets", "Other"],
+      "number_col": "N.M",
+      "amount_col": "A.M"
+    },
+    "SH": {
+      "japanese": ["株主割当"],
+      "english": ["Shareholder Allotment", "Shareholder"],
+      "number_col": "N.M",
+      "amount_col": "A.M"
+    },
+    "TP": {
+      "japanese": ["第三者割当"],
+      "english": ["Third Party Allotment", "Third Party"],
+      "number_col": "N.M",
+      "amount_col": "A.M"
+    },
+    "NIPO": {
+      "japanese": ["売出（新規上場以外）", "新規上場以外", "新規公開以外"],
+      "english": ["Secondary Distributions (Non IPO)", "Non IPO"],
+      "number_col": "N.M",
+      "amount_col": "A.M"
+    },
+    "IPO": {
+      "japanese": ["売出（新規上場）", "新規上場", "新規公開"],
+      "english": ["Secondary Distributions (IPO)", "IPO"],
+      "number_col": "N.M",
+      "amount_col": "A.M"
+    },
+    "TTL": {
+      "japanese": ["売出計", "売出額計", "売出額計（国内）", "売出額計（海外）", "売出額計（合計）", "合計"],
+      "english": ["Total Secondary Distributions", "Total Domestic Secondary", "Total Overseas Secondary"],
+      "number_col": "N.M",
+      "amount_col": "A.M"
+    }
+  },
+
+  "scope_mapping": {
+    "domestic": "DOM",
+    "overseas": "OVR",
+    "total": "TTL",
+    "size_breakdown": "SZ",
+    "market_breakdown": "MRKT",
+    "reference": "REF",
+    "secondary_domestic": "SDDOM",
+    "secondary_overseas": "SDOVR",
+    "secondary_total": "SDTTL",
+    "secondary_size": "SDSZ"
+  },
+
+  "sheet_detection": {
+    "domestic": ["募集国内", "Domestic"],
+    "overseas": ["募集海外", "Overseas"],
+    "total": ["募集合計", "Total"],
+    "size_breakdown": ["募集規模内訳", "Size Breakdown"],
+    "market_breakdown": ["海外内訳", "Market Breakdown"],
+    "reference": ["参考", "Reference"],
+    "secondary_domestic": ["売出国内", "Secondary Domestic"],
+    "secondary_overseas": ["売出海外", "Secondary Overseas"],
+    "secondary_total": ["売出合計", "Secondary Total"],
+    "secondary_size": ["売出規模内訳", "Secondary Size"]
+  },
+
+  "column_indicators": {
+    "number": ["件数", "Number"],
+    "amount": ["調達額", "売出額", "Amount"]
+  },
+
+  "date_patterns": {
+    "year_indicators": ["2020", "2021", "2022", "2023", "2024", "2025", "2026"],
+    "header_row_indicators": ["Number", "件数", "Period", "年 月"]
+  }
+}
